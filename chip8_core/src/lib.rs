@@ -46,7 +46,7 @@ const START_ADDR: u16 = 0x200;
 
 impl Emu {
     pub fun new() -> Self {
-        Self {
+            let mut new_emu = Self {
             pc: START_ADDR,
             ram: [0, RAM_SIZE],
             screen: [false; SCREEN_WIDTH * SCREEN_HEIGHT],
@@ -77,7 +77,86 @@ impl Emu {
         self.st = 0;
         self.ram[..FONTSET_SIZE].copy_from_slice(&FONTSET);
     }
+   
+    pub fn tick(&mut self) {
+        // fetch
+        let op = self.fetch();
+        // decode, execute
+        self.execute(op);
+    }
 
+    fn fetch (&mut self) -> u16 {
+        let higher_byte = self.ram[self.pc as usize] as u16;
+        let lower_byte = self.ram[(self.pc+1) as usize] as u16;
+        let op = (higher_byte << 8) | lower_byte;
+        self.pc += 2;
+        op
+    }
+
+    // TODO: Make a decode function out of the execute function.
+    fn decode (&mut self, op: u16) -> (u8, u8, u8, u8) {
+        let digit1 = (op & 0xF000) >> 12;
+        let digit2 = (op & 0x0F00) >> 8;
+        let digit3 = (op & 0x00F0) >> 4;
+        let digit4 = (op & 0x000F);
+
+        (digit1, digit2, digit3, digit4)
+    }
+
+    fn execute(&mut self, nibbles: (u8, u8, u8, u8) {
+        // let digit1 = (op & 0xF000) >> 12;
+        // let digit2 = (op & 0x0F00) >> 8;
+        // let digit3 = (op & 0x00F0) >> 4;
+        // let digit4 = (op & 0x000F);
+        
+        let (digit1, digit2, digit3, digit4) = nibbles;
+        
+        match (digit1, digit2, digit3, digit4) {
+            // NOP
+            (0,0,0,0) => return,
+
+            // clear screen
+            (0,0,0xE,0) => {
+                self.screen = [false; SCREEN_WIDTH * SCREEN_HEIGHT];
+            },
+
+            // return to a subroutine
+            (0,0,0xE,0xE) => {
+                let ret_addr = self.pop();
+                self.pc = ret_addr;
+            },
+
+            // JUMP nnn
+            (1,_,_,_) => {
+                let nnn = op & 0x0FFF;
+                self.pc = nnn;
+            },
+
+            // call subroutine
+            (2,_,_,) => {
+                let nnn = op & 0x0FFF;
+                self.push(self.pc);
+                self.pc = nnn;
+            },
+
+        }
+
+    }
+    
+    pub fn tick_timers(&mut self) {
+        if self.dt > 0 {
+            self.dt -= 1;
+        }
+
+        if self.st > 0 {
+            if self.st == 1 {
+                // BEEP
+            }
+            self.st =- 1;
+        }
+    }
+
+// Stack functions
     fn push(&mut self, val: u16) {
         match self.sp {
             sp if sp >= self.stack.len() as u16 => {
@@ -103,5 +182,5 @@ impl Emu {
             }            
         }
     }
-    
+
 }
